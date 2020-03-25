@@ -5,29 +5,35 @@ import com.badlogic.gdx.Input
 import com.badlogic.gdx.ScreenAdapter
 import com.badlogic.gdx.graphics.GL20
 import com.badlogic.gdx.graphics.Texture
+import com.badlogic.gdx.graphics.g2d.Batch
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.math.MathUtils
+import com.badlogic.gdx.utils.Array
 import java.awt.Color
 
 class GameScreen : ScreenAdapter() {
     private lateinit var batch: SpriteBatch
-    private lateinit var snakeHead: Texture;
+    private lateinit var snakeHead: Texture
     private lateinit var snakeBody: Texture
     private lateinit var apple: Texture
 
     private var timer = MOVE_TIME
-    private var snakeX = 0f
-    private var snakeY = 0f
+    var snakeX = 0f
+    var snakeY = 0f
+    private var snakeXBeforeUpdate = 0f
+    private var snakeYBeforeUpdate = 0f
     private var snakeDirection = RIGHT
     private var appleAvailable = false
     private var appleX = 0f
     private var appleY = 0f
+    private lateinit var bodyParts: Array<BodyPart>
 
     override fun show() {
         batch = SpriteBatch()
         snakeHead = Texture(files.internal("snake-head.png"))
         snakeBody = Texture(files.internal("snake-body.png"))
         apple = Texture(files.internal("apple.png"))
+        bodyParts = Array<BodyPart>()
     }
 
     override fun render(delta: Float) {
@@ -37,6 +43,7 @@ class GameScreen : ScreenAdapter() {
             timer = MOVE_TIME
             moveSnake()
             checkForOutOfBounds()
+            updateBodyPartsPosition()
         }
         checkAppleCollision()
         checkAndPlaceApple()
@@ -46,10 +53,13 @@ class GameScreen : ScreenAdapter() {
 
     private fun draw() {
         batch.begin()
+        batch.draw(snakeHead, snakeX, snakeY)
+        for (bodyPart in bodyParts) {
+            bodyPart.draw(batch)
+        }
         if (appleAvailable)
             batch.draw(apple, appleX, appleY)
 
-        batch.draw(snakeHead, snakeX, snakeY)
         batch.end()
     }
 
@@ -76,11 +86,22 @@ class GameScreen : ScreenAdapter() {
     }
 
     private fun moveSnake() {
+        snakeXBeforeUpdate = snakeX
+        snakeYBeforeUpdate = snakeY
+
         when (snakeDirection) {
             RIGHT -> snakeX += SNAKE_MOVEMENT
             LEFT -> snakeX -= SNAKE_MOVEMENT
             UP -> snakeY += SNAKE_MOVEMENT
             DOWN -> snakeY -= SNAKE_MOVEMENT
+        }
+    }
+
+    private fun updateBodyPartsPosition() {
+        if (bodyParts.size > 0) {
+            val bodyPart = bodyParts.removeIndex(0)
+            bodyPart.updateBodyPosition(snakeXBeforeUpdate, snakeYBeforeUpdate)
+            bodyParts.add(bodyPart)
         }
     }
 
@@ -107,12 +128,35 @@ class GameScreen : ScreenAdapter() {
     }
 
     private fun checkAppleCollision() {
-        if (appleAvailable && appleX == snakeX && appleY == snakeY)
+        if (appleAvailable && appleX == snakeX && appleY == snakeY) {
+            val bodyPart = BodyPart(snakeBody)
+            bodyPart.updateBodyPosition(snakeX, snakeY)
+            bodyParts.insert(0, bodyPart)
             appleAvailable = false
+        }
+    }
+
+    inner class BodyPart {
+        private var x: Float = 0.0f
+        private var y: Float = 0.0f
+        private var texture: Texture
+
+        constructor(texture: Texture) {
+            this.texture = texture
+        }
+
+        fun updateBodyPosition(x: Float, y: Float) {
+            this.x = x
+            this.y = y
+        }
+
+        fun draw(batch: Batch) {
+            if (!(x == snakeX && y == snakeY)) batch.draw(texture, x, y)
+        }
     }
 
     companion object {
-        const val MOVE_TIME = .3f
+        const val MOVE_TIME = .2f
         const val SNAKE_MOVEMENT = 32
         const val RIGHT = 0
         const val LEFT = 1
